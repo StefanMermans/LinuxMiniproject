@@ -16,8 +16,9 @@ function SendQuery(connection,query){
         }
     });
 }
+
 /**
- * Method for checking if json is valid
+ * Function for checking if json is valid
  * Does try to parse json and returns if parsing failed!
  * /returns boolean which is false if parsing failed and true if parsing was Succes
  * /params string in json format
@@ -70,6 +71,7 @@ REST_ROUTER.prototype.handleRoutes= function(router,connection,md5) {
                 }
             });
     });
+    
     // Method for posting a new measurement to the database
     router.post("/sensor/:id", function(req, res){
 
