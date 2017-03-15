@@ -20,8 +20,10 @@
 
 int status;
 String server = "http://192.168.42.1:3000";
+String identifier = "N1";
 char * ssid = "AwesomeNetwork";
 char * wifiPass = "AwesomePi";
+String ip = "INVALID";
 
 /**
 Connect to a wifi source
@@ -41,18 +43,10 @@ boolean connectToWifi(char * ssid, char * password){
         Serial.println("Connected!");
         Serial.print("IP Addr:  ");
         Serial.println(WiFi.localIP());
+        ip = ""+WiFi.localIP();
         Serial.print("Status: ");
         Serial.println(WiFi.status());
         return true;
-    }
-}
-
-void setup() {
-    Serial.begin(115200);
-    // try to connect to wifi until it's succesfull
-    while(!connectToWifi(ssid,wifiPass)){
-        delay(1000); // Give it some time
-        Serial.println("Retrying connecion...");
     }
 }
 
@@ -81,6 +75,26 @@ String httpRequestPost(String target, String content){
   }
 }
 
+String httpRequestGet(String target){
+  HTTPClient httpClient;
+  httpClient.begin(target);
+  int httpCode = httpClient.GET();
+  if(httpCode == HTTP_CODE_OK){
+      String payload = httpClient.getString();
+      Serial.print("HTTP RESPONSE: ");
+      Serial.println(payload);
+      httpClient.end();
+      return payload;
+  }else{
+      Serial.print("HTTP ERROR:");
+      Serial.println(httpClient.errorToString(httpCode));
+      httpClient.end();
+      return HTTP_ERROR_RESPONSE;
+  }
+}
+
+
+
 /*
  * generate default body for sending sensor data to the server
  * Will be returned as string in json format (and value will been inserted as value)
@@ -95,9 +109,61 @@ String generateBody(float value){
   root.printTo(buffer);
   return buffer;
 }
+String generateRegister(String ip, String identifier){
+  StaticJsonBuffer<200> jsonBuffer;
+  JsonObject& root = jsonBuffer.createObject();
+  root["id"] = identifier;
+  root["ip"] = ip;
+  char buffer[256];
+  root.printTo(buffer);
+  return buffer;
+}
+/*
+ * Check if response is valid and no errors are returned (like device blocked)
+ */
+boolean errorInResponse(String response){
+  StaticJsonBuffer<200> jsonBuffer;
+  JsonObject& root = jsonBuffer.parseObject(response);
+  if (!root.success()){
+    return false;
+  }
+  if(root.containsKey("Status") && root["Status"] == "Error"){
+    return false;
+  }
+  return true;
+}
+
+/*
+ * Register device at server
+ */
+boolean registerDevice(){
+    Serial.println(generateRegister(ip, identifier));
+    String response = httpRequestPost(server + "/register", generateRegister(ip, identifier));
+    if(response != HTTP_ERROR_RESPONSE && !errorInResponse(response)){
+      
+      Serial.println("REGISTERED");
+      return true;
+    }
+    delay(1000);
+    return registerDevice();   //retry recursive
+}
+
+
+void setup() {
+    Serial.begin(115200);
+    // try to connect to wifi until it's succesfull
+    while(!connectToWifi(ssid,wifiPass)){
+        delay(1000); // Give it some time
+        Serial.println("Retrying connecion...");
+    }
+    registerDevice();
+}
+
 
 void loop() {
   httpRequestPost(server + "/sensor/3", generateBody(10));
-  delay(1000);
   
+  while(1){
+    delay(1000);
+  }
 }
