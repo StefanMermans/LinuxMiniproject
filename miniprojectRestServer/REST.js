@@ -55,6 +55,22 @@ REST_ROUTER.prototype.handleRoutes= function(router,connection,md5) {
                 }
             });
     });
+    router.post("/sensor/:id", function(req, res){
+        // Create a SQL query using mysql.escape for safety reasons.
+        var query = `
+            INSERT INTO MEASUREMENT (SENSOR_ID, VALUE) VALUES(`+
+            mysql.escape(req.params.id) + `,`
+            +mysql.escape(req.body.value) + `);`;
+
+            connection.query(query, function(err,rows){
+                if(err){
+                    res.json({"Status" : "Error", "error":err});
+                    throw err;
+                } else {
+                    res.json({"Status" : "Succes", "Data" : rows});
+                }
+            });
+    });
 
     router.get("/device/:id", function(req, res){
         // Create a SQL query using mysql.escape for safety reasons.
