@@ -16,7 +16,12 @@ function SendQuery(connection,query){
         }
     });
 }
-
+/**
+ * Method for checking if json is valid
+ * Does try to parse json and returns if parsing failed!
+ * /returns boolean which is false if parsing failed and true if parsing was Succes
+ * /params string in json format
+ */
 function IsJsonString(str) {
     try {
         JSON.parse(str);
@@ -65,11 +70,16 @@ REST_ROUTER.prototype.handleRoutes= function(router,connection,md5) {
                 }
             });
     });
+    // Method for posting a new measurement to the database
     router.post("/sensor/:id", function(req, res){
-        // Create a SQL query using mysql.escape for safety reasons.
-        if(!IsJsonString(req.body)){
+
+        // checking if json is valid
+        // TODO still getting errors when invalid json (because node js is trying to parse before)
+        // ERROR BECAUSE REQ.BODY IS THE PARSED JSON VALUE!
+        if(IsJsonString(req.body)){
             res.json({"Status" : "Error", "error":"No valid json!"});
         }else{
+          // Create a SQL query using mysql.escape for safety reasons.
           var query = `
               INSERT INTO MEASUREMENT (SENSOR_ID, VALUE) VALUES(`+
               mysql.escape(req.params.id) + `,`
@@ -80,7 +90,8 @@ REST_ROUTER.prototype.handleRoutes= function(router,connection,md5) {
                       res.json({"Status" : "Error", "error":err});
                       throw err;
                   } else {
-                      res.json({"Status" : "Succes", "Data" : rows});
+
+                      res.json({"Status" : "Succes"});
                   }
               });
           }
