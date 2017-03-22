@@ -24,15 +24,15 @@
 
 // Define the amount of sensors and what identifier they will have
 #define MAX_SENSOR_COUNT 2
-#define TEMP_SENSOR "S0"
-#define HUMID_SENSOR "S1"
+#define TEMP_SENSOR 0
+#define HUMID_SENSOR 1
 
 #define IP_INVALID_MESSAGE "INVALID"
 #define HTTP_ERROR_RESPONSE "REQUEST_FAILED"
 
 // Define the structs for the sensors
 typedef struct {
-    String identifier;
+    int identifier;
     float value;
     String databaseId;
 } Sensor;
@@ -60,9 +60,8 @@ void initSensors(){
 
   for (index = 0; index < MAX_SENSOR_COUNT; index++){
       Sensor sensor;
-      sensor.identifier = "S" + index;
-      // initalise to -1 to give it a value which will never succeed
-      sensor.databaseId = -1;
+      sensor.identifier = index;
+      sensor.databaseId = 3;
 
       sensorsList[index] = sensor;
   }
@@ -83,7 +82,7 @@ void readSensors(){
             sensorsList[index].value = dht.readHumidity();
         }
 
-        Serial.print("\n");
+        Serial.print("\nS");
         Serial.print(sensorsList[index].identifier);
         Serial.print(": Value: ");
         Serial.print(sensorsList[index].value);
@@ -236,28 +235,10 @@ boolean errorInResponse(String response){
 boolean registerDevice(){
     Serial.println(generateRegister(ip, identifier));
     String response = httpRequestPost(server + "/register", generateRegister(ip, identifier));
-
     if(response != HTTP_ERROR_RESPONSE && !errorInResponse(response)){
-        // Set the databaseid's for the sensors
-        StaticJsonBuffer<200> jsonBuffer;
-        JsonObject& root = jsonBuffer.parseObject(response);
 
-        if(root.success() && root.containsKey("found")){
-            int index;
-
-            Serial.println("REGISTER:\n" + response);
-
-            char buffer[256];
-            root["found"].printTo(buffer);
-            JsonArray& jsonArray = jsonBuffer.parseArray(buffer);
-
-            for(index = 0; index < MAX_SENSOR_COUNT; index++){
-                const char* jsonId = jsonArray[index]["ID"];
-                sensorsList[index].databaseId = jsonId;
-            }
-
-            return true;
-        }
+      Serial.println("REGISTERED");
+      return true;
     }
     delay(1000);
     return registerDevice();   //retry recursive
@@ -271,7 +252,7 @@ boolean registerDevice(){
 String sendSensorData(Sensor sensor){
     String sensorName = "/sensor/" + sensor.databaseId;
 
-    if(isnan(sensor.value)){
+    if(!isnan(sensor.value)){
       return "NAN value";
     }
     return httpRequestPost(server + sensorName, generateBody(sensor.value));
