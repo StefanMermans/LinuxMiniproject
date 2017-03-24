@@ -53,6 +53,7 @@ Sensor sensorsList[MAX_SENSOR_COUNT];
 
 /**
 Initialise the sensors array
+test
 */
 void initSensors(){
     int index;
