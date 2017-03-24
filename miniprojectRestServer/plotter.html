@@ -21,7 +21,7 @@
               google.charts.load('current', {'packages':['corechart']});
               google.charts.setOnLoadCallback(drawChart);
 
-              function drawChart() {
+              function drawChart() { // test
                   var localhost = window.location.hostname;
                   $.getJSON('http://' + localhost + ':3000/sensor/3', function (json_data) {
                       var array = [["ID", "Sensor Value"]];
