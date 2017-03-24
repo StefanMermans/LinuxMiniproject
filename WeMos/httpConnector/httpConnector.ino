@@ -34,7 +34,7 @@
 typedef struct {
     String identifier;
     float value;
-    String databaseId;
+    int databaseId;
 } Sensor;
 
 // This is for the ESP8266 processor on ESP-01
@@ -59,8 +59,10 @@ void initSensors(){
   dht.begin();
 
   for (index = 0; index < MAX_SENSOR_COUNT; index++){
+      char sensorId[2];
       Sensor sensor;
-      sensor.identifier = "S" + index;
+      sprintf(sensorId, "S%i",index);
+      sensor.identifier = sensorId;
       // initalise to -1 to give it a value which will never succeed
       sensor.databaseId = -1;
 
@@ -112,7 +114,8 @@ boolean connectToWifi(char * ssid, char * password){
         Serial.print("IP Addr:  ");
         Serial.println(WiFi.localIP());
 
-        ip = ""+WiFi.localIP();
+        char buffer[16];
+        ip = WiFi.localIP().toString();
 
         Serial.print("Status: ");
         Serial.println(WiFi.status());
@@ -184,7 +187,7 @@ String httpRequestGet(String target){
  * @return body: the filled/generated json body
  */
 String generateBody(float value){
-  StaticJsonBuffer<200> jsonBuffer;
+  StaticJsonBuffer<400> jsonBuffer;
   JsonObject& root = jsonBuffer.createObject();
 
   root["value"] = value;
@@ -198,28 +201,28 @@ String generateBody(float value){
 String generateRegister(String ip, String identifier){
     int index;
 
-  StaticJsonBuffer<200> jsonBuffer;
-  JsonObject& root = jsonBuffer.createObject();
+    StaticJsonBuffer<400> jsonBuffer;
+    JsonObject& root = jsonBuffer.createObject();
 
-  JsonArray& sensors = root.createNestedArray("sensors");
-  for(index = 0; index < MAX_SENSOR_COUNT; index++){
-      sensors.add(sensorsList[index].identifier);
-  }
+    JsonArray& sensors = root.createNestedArray("sensors");
+    for(index = 0; index < MAX_SENSOR_COUNT; index++){
+        sensors.add(sensorsList[index].identifier);
+    }
 
-  root["sensors"] = sensors;
-  root["ip"] = ip;
+    root["sensors"] = sensors;
+    root["ip"] = ip;
 
-  char buffer[256];
-  root.printTo(buffer);
+    char buffer[256];
+    root.printTo(buffer);
 
-  return buffer;
+    return buffer;
 }
 
 /*
  * Check if response is valid and no errors are returned (like device blocked)
  */
 boolean errorInResponse(String response){
-  StaticJsonBuffer<200> jsonBuffer;
+  StaticJsonBuffer<400> jsonBuffer;
   JsonObject& root = jsonBuffer.parseObject(response);
   if (!root.success()){
     return true;
@@ -233,34 +236,48 @@ boolean errorInResponse(String response){
 /*
  * Register device at server
  */
-boolean registerDevice(){
-    Serial.println(generateRegister(ip, identifier));
-    String response = httpRequestPost(server + "/register", generateRegister(ip, identifier));
+boolean registerDevice(String body){
 
+    // char buffer[100];
+    // sprintf(buffer, "http://192.168.42.1:3000/register", server);
+
+    String response = httpRequestPost(server + "/register", body);
+
+    Serial.println("Checking register response");
     if(response != HTTP_ERROR_RESPONSE && !errorInResponse(response)){
+        Serial.println("Parsing response");
+
         // Set the databaseid's for the sensors
-        StaticJsonBuffer<200> jsonBuffer;
+        StaticJsonBuffer<400> jsonBuffer;
         JsonObject& root = jsonBuffer.parseObject(response);
 
+        Serial.println("Response size:");
+        Serial.println(response.length());
+
+        if(root.success()){
+            Serial.println("It's not the json");
+        } else{
+            Serial.println("It might be the json");
+        }
         if(root.success() && root.containsKey("found")){
             int index;
 
-            Serial.println("REGISTER:\n" + response);
-
-            char buffer[256];
-            root["found"].printTo(buffer);
-            JsonArray& jsonArray = jsonBuffer.parseArray(buffer);
+            // Serial.println("REGISTER:\n" + response);
+            Serial.println("REGISTERED succesfully!");
+            Serial.println(response);
 
             for(index = 0; index < MAX_SENSOR_COUNT; index++){
-                const char* jsonId = jsonArray[index]["ID"];
-                sensorsList[index].databaseId = jsonId;
+                // JsonArray& array = root['found'];
+                sensorsList[index].databaseId = root["found"][index]["database_id"];
             }
 
             return true;
         }
     }
+    Serial.println("Delay");
     delay(1000);
-    return registerDevice();   //retry recursive
+    Serial.println("Retrying register, recursively");
+    return registerDevice(body);   //retry recursive
 }
 
 /*
@@ -269,12 +286,14 @@ boolean registerDevice(){
  * @return response: the response from the server or HTTP_ERROR_RESPONSE when failed! (REQUEST_FAILED)
 */
 String sendSensorData(Sensor sensor){
-    String sensorName = "/sensor/" + sensor.databaseId;
+    char buffer[100];
+    sprintf(buffer, "/sensor/%i", sensor.databaseId);
+    // Serial.println(buffer);
 
     if(isnan(sensor.value)){
       return "NAN value";
     }
-    return httpRequestPost(server + sensorName, generateBody(sensor.value));
+    return httpRequestPost(server + buffer, generateBody(sensor.value));
 }
 
 void setup() {
@@ -285,10 +304,12 @@ void setup() {
         Serial.println("Retrying connecion...");
     }
     initSensors();
-    registerDevice();
+    registerDevice(generateRegister(ip, identifier));
+    Serial.println("Done registering!");
 }
 
 void loop() {
+    Serial.println("loop!");
     int index;
 
     // Update the value in the sensors
