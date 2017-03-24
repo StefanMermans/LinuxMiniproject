@@ -1,8 +1,20 @@
 var mysql = require("mysql");
+var plotly = require('plotly')("bartmachielsen", "GzsHENwzo5wDDEuw3Wqa");
 
 function REST_ROUTER(router,connection,md5) {
     var self = this;
     self.handleRoutes(router,connection,md5);
+}
+
+
+function UpdateDevice(connection,device_id, device_ip){
+    var query =`UPDATE DEVICE SET IP=`+mysql.escape(device_ip)+`
+                WHERE ID = ` + mysql.escape(device_id);
+    connection.query(query, function(err,rows){
+        if(err){
+            console.log("COULD NOT UPDATE DEVICE BECAUSE: \n" + err);
+        }
+    });
 }
 
 
@@ -29,10 +41,12 @@ REST_ROUTER.prototype.handleRoutes= function(router,connection,md5) {
             });
     });
 
+
     router.get("/sensor/:id", function(req, res){
         // Create a SQL query using mysql.escape for safety reasons.
+        res.setHeader('Access-Control-Allow-Origin', '*');
         var query = `
-          SELECT ID,VALUE FROM SENSOR_MEASUREMENTS
+          SELECT ID,VALUE,MEASURED FROM SENSOR_MEASUREMENTS
           WHERE SENSOR_ID = `+
           mysql.escape(req.params.id);
 
@@ -47,52 +61,87 @@ REST_ROUTER.prototype.handleRoutes= function(router,connection,md5) {
         });
     });
 
+/**
+*   Method for registering/ device into server
+*   Needed values:
+*   Body in json containing IP, SENSORS (as identifier)
+**/
     router.post("/register", function(req, res){
+      // check if valid json
       try {
           var json_value = req.body;
-          var params = req.params;
+          console.log(json_value);
       } catch (e) {
           res.json({"Status" : "Error", "error":"invalid body/params"});
           return;
       }
-
-      if(req.body.ip == null){
+      //    check if received all params needed
+      if(json_value.ip == null || json_value.sensors == null){
         res.json({"Status" : "Error", "error":"missing params"});
         console.log("missing params! " + req.body);
         return;
       }
+        var ip = json_value.ip;
+        var sensors = json_value.sensors;
 
-        var ip = req.body.ip;
-        var device_id = null;
-        var sensors = req.body.sensors;
+        // get all sensors from database
         connection.query("SELECT * FROM SENSOR", function(err,rows){
             if(err){
+                //  no sensors found -->
                 res.json({"Status" : "Error"});
-                console.log("SQL Error " + err);
+                console.log("SQL Error (loading sensors)" + err);
                 return;
             } else {
                 var found_sensors = [];
-                console.log(rows);
-                for (var row in rows) {
-                  var found = null;
-                  var db_sensor = rows[row];
-                  for(var sensor in sensors){
-                    console.log("SENSOR RECEIVED:" + sensor);
-                    console.log(db_sensor);
-                    if(sensor == db_sensor["IDENTIFIER"]){
-                      found = db_sensor;
-                      device_id = db_sensor["DEVICE_ID"];
-                      break;
+                var device_id = -1;
+                for(var sensor_id in sensors){
+                    var sensor = sensors[sensor_id];
+                    var found_db_sensor = null;
+                    for(var row_id in rows){
+                        var db_sensor = rows[row_id];
+                        if(db_sensor["IDENTIFIER"] == sensor){
+                            found_db_sensor = db_sensor;
+                            break;
+                        }
                     }
-                  }
-                  if(found != null){
-                    console.log(found);
-                    console.log("FOUND SENSOR");
-                    found_sensors.push({"id":found["IDENTIFIER"],"database_id":found["ID"]});
-                  }
+                    if(found_db_sensor == null){
+                        console.log("SENSOR NOT FOUND IN DB ["+sensor + "]");
+                        var query =  `INSERT INTO SENSOR (IDENTIFIER) VALUES(`+mysql.escape(sensor)+`)`;
+                        console.log(query);
+                        connection.query(query, function(err,rows){
+                            var new_id = -1;
+                            if(err){
+                                console.log("COULD NOT INSERT SENSOR BECAUSE: \n" + err);
+                            }else{
+                                new_id = rows.insertId;
+                                console.log(new_id);
+                            }
+                            found_sensors.push(
+                                                {
+                                                    "id": sensor,
+                                                    "database_id": new_id
+                                                }
+                                            );
+                        });
+
+                        // TODO INSERT INTO SENSOR
+                        // TODO CREATE DEVICE
+
+                    }else{
+                        if(found_db_sensor["DEVICE_ID"] != 0 && found_db_sensor["DEVICE_ID"] != null){
+                            device_id = found_db_sensor["DEVICE_ID"];
+                        }
+                        // collect found sensors in a neat list
+                        found_sensors.push(
+                                            {
+                                                "id": sensor,
+                                                "database_id": found_db_sensor["ID"]
+                                            }
+                                        );
+                    }
                 }
-                console.log(found_sensors);
-                if(device_id == null){
+                // check if could convert device id
+                if(device_id == -1){
                   console.log("INVALID DEVICE ID!");
                   res.json(
                     {
@@ -100,6 +149,7 @@ REST_ROUTER.prototype.handleRoutes= function(router,connection,md5) {
                       "error":"Invalid device id"
                     });
                 }else{
+                    // confirm registration
                   console.log("DEVICE REGISTERED ["+ device_id +"]");
                   res.json(
                     {
@@ -108,12 +158,24 @@ REST_ROUTER.prototype.handleRoutes= function(router,connection,md5) {
                       "device":device_id,
                       "found":found_sensors
                     });
+                    UpdateDevice(connection, device_id, ip);
                 }
             }
 
         });
     });
-
+    // Method for posting a new measurement to the database
+    router.get("/sensors", function(req, res){
+        connection.query("SELECT * FROM SENSOR", function(err,rows){
+            if(err){
+                res.json({"Status" : "Error"});
+                console.log("SQL Error (loading sensors)" + err);
+                return;
+            }else{
+                res.json({"Status":"Succes","Data":rows});
+            }
+        });
+    });
 
 
     // Method for posting a new measurement to the database
