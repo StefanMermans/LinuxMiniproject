@@ -5,11 +5,11 @@
             <script>
                 (function(){
 
-                    let mycombo=Combo.New(document.getElementById('sensors'));
+                    var mycombo=Combo.New(document.getElementById('sensors'));
                     mycombo.options(['first', 'second', 'third']);
 
                     mycombo.onchange=function(e, combo) {
-                      let val=combo.value;
+                      var val=combo.value;
                       // let val=this.value; // same as above
                       alert(val);
                      }
@@ -48,7 +48,7 @@
     </head>
     <body>
         <select id="sensors"></select>
-        <div id="curve_chart" style="width: 900px; height: 500px"></div>
+        <div id="curve_chart" style="width: 80%;"></div>
     </body>
 
 </html>
