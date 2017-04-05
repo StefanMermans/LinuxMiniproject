@@ -1,27 +1,24 @@
 <html>
     <head>
         <title>Bart Awesome Plotter </title>
+    </head>
+    <body>
+        <select id="sensors"></select>
+        <div id="curve_chart" style="width: 1500px; height: 500px"></div>
+        <div id="curve_chart1" style="width: 1500px; height: 500px"></div>
         <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+        <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
             <script>
-                (function(){
+               (function runForever(){
 
-                    var mycombo=Combo.New(document.getElementById('sensors'));
-                    mycombo.options(['first', 'second', 'third']);
+			         drawChart();
+                     setTimeout(runForever,1000);
+              })();
 
-                    mycombo.onchange=function(e, combo) {
-                      var val=combo.value;
-                      // let val=this.value; // same as above
-                      alert(val);
-                     }
-                 })();
-                }
-            </script>
-            <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
-            <script type="text/javascript">
               google.charts.load('current', {'packages':['corechart']});
               google.charts.setOnLoadCallback(drawChart);
 
-              function drawChart() { // test
+              function drawChart() { // test2
                   var localhost = window.location.hostname;
                   $.getJSON('http://' + localhost + ':3000/sensor/3', function (json_data) {
                       var array = [["ID", "Sensor Value"]];
@@ -33,7 +30,7 @@
                       var data = google.visualization.arrayToDataTable(array);
 
                       var options = {
-                        title: 'Measurement Data',
+                        title: 'Humidity',
                         curveType: 'Measurement value',
                         legend: { position: 'bottom' }
                       };
@@ -43,12 +40,28 @@
                       chart.draw(data, options);
 
                   });
+                  $.getJSON('http://' + localhost + ':3000/sensor/8', function (json_data) {
+                      var array = [["ID", "Sensor Value"]];
+                      for(var json in json_data.Data){
+                          var measurement_data = json_data.Data[json];
+                          array.push([measurement_data.ID, measurement_data.VALUE]);
+                      }
+
+                      var data = google.visualization.arrayToDataTable(array);
+
+                      var options = {
+                        title: 'Temperature',
+                        curveType: 'Measurement value',
+                        legend: { position: 'bottom' }
+                      };
+
+                      var chart = new google.visualization.LineChart(document.getElementById('curve_chart1'));
+
+                      chart.draw(data, options);
+
+                  });
               }
             </script>
-    </head>
-    <body>
-        <select id="sensors"></select>
-        <div id="curve_chart" style="width: 80%;"></div>
     </body>
 
 </html>
